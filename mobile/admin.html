@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bouncer | Incident manifest</title>
+    <style>
+      :root { color-scheme: light; font: 15px/1.45 system-ui, sans-serif; color: #172b40; background: #f3f6f9; }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      header { background: #15344f; color: #fff; padding: 24px max(24px, calc((100vw - 1100px) / 2)); }
+      header p { color: #c7d8e7; margin: 5px 0 0; }
+      main { margin: 28px auto; max-width: 1100px; padding: 0 20px; }
+      .notice { background: #fff7df; border: 1px solid #efdaa0; border-radius: 10px; color: #654f16; margin-bottom: 18px; padding: 12px 15px; }
+      .toolbar, .summary { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; }
+      .toolbar { margin: 0 0 16px; }
+      .declare { background: white; border: 1px solid #e0e7ed; border-radius: 12px; margin-bottom: 18px; padding: 16px; }
+      .declare h2 { font-size: 17px; margin: 0 0 12px; }
+      .declare-fields { display: grid; gap: 10px; grid-template-columns: 1fr 2fr auto; }
+      .declare input, .declare textarea { border: 1px solid #cbd6e1; border-radius: 8px; font: inherit; padding: 9px 12px; width: 100%; }
+      .declare textarea { min-height: 42px; resize: vertical; }
+      .danger { background: #a33a36; border-color: #a33a36; }
+      select, button { border: 1px solid #cbd6e1; border-radius: 8px; font: inherit; padding: 9px 12px; }
+      button { background: #176c9c; border-color: #176c9c; color: white; cursor: pointer; font-weight: 650; }
+      button:disabled { cursor: default; opacity: .5; }
+      .summary { justify-content: flex-start; margin: 0 0 16px; }
+      .metric, .panel { background: white; border: 1px solid #e0e7ed; border-radius: 12px; }
+      .metric { min-width: 145px; padding: 12px 15px; }
+      .metric strong { display: block; font-size: 21px; }
+      .metric span { color: #5b6e80; font-size: 13px; }
+      .panel { overflow: hidden; }
+      .panel h2 { font-size: 17px; margin: 0; padding: 16px 18px; }
+      .table-wrap { overflow-x: auto; }
+      table { border-collapse: collapse; min-width: 760px; width: 100%; }
+      th, td { border-top: 1px solid #e8edf1; padding: 12px 16px; text-align: left; }
+      th { background: #f8fafb; color: #52677b; font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+      td small { color: #63778a; display: block; }
+      .pill { border-radius: 999px; display: inline-block; font-size: 12px; font-weight: 650; padding: 4px 9px; white-space: nowrap; }
+      .green { background: #e1f3e9; color: #17603d; }
+      .amber { background: #fff0cc; color: #765100; }
+      .gray { background: #edf1f4; color: #4c5d6c; }
+      .empty { color: #63778a; padding: 22px 18px; }
+      #status { color: #52677b; font-size: 13px; }
+      @media (max-width: 600px) { header { padding: 20px; } main { margin-top: 18px; padding: 0 12px; } }
+      @media (max-width: 760px) { .declare-fields { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>Bouncer</strong>
+      <p>Incident manager · workplace manifest</p>
+    </header>
+    <main>
+      <div class="notice">Local spike only. This demo has no sign-in, uses a sample employee roster, and stores everything in memory.</div>
+      <section class="declare">
+        <h2>Declare an incident</h2>
+        <form id="declare-form" class="declare-fields">
+          <input id="incident-title" aria-label="Incident title" placeholder="Incident title" required value="Fire drill" />
+          <textarea id="incident-protocol" aria-label="Response instructions" placeholder="Response instructions" required>Leave by the nearest safe exit. Go to the north car park assembly point. Follow workplace instructions and do not re-enter until the incident manager says it is safe.</textarea>
+          <button type="submit">Declare &amp; notify</button>
+        </form>
+      </section>
+      <div class="toolbar">
+        <label>Incident <select id="incident"><option value="">No incidents yet</option></select></label>
+        <span id="status">Waiting for an incident.</span>
+        <button id="resolve" class="danger" type="button" disabled>Resolve incident</button>
+      </div>
+      <section class="summary" id="summary"></section>
+      <section class="panel">
+        <h2 id="title">Employee manifest</h2>
+        <div id="content" class="empty">Send a test incident from the Bouncer phone app to populate the manifest.</div>
+      </section>
+    </main>
+    <script>
+      const incidentSelect = document.querySelector('#incident');
+      const summary = document.querySelector('#summary');
+      const content = document.querySelector('#content');
+      const status = document.querySelector('#status');
+      const title = document.querySelector('#title');
+      const resolveButton = document.querySelector('#resolve');
+      const declareButton = document.querySelector('#declare-form button[type="submit"]');
+      let selectedIncidentId = '';
+      let refreshing = false;
+
+      function pill(value, tone) { return `<span class="pill ${tone}">${value}</span>`; }
+      function formatTime(value) { return value ? new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'; }
+
+      async function refreshIncidents() {
+        const response = await fetch('/api/incidents');
+        const data = await response.json();
+        const current = selectedIncidentId || incidentSelect.value;
+        const options = data.incidents.slice().reverse().map((incident) => `<option value="${incident.id}">${incident.title} · ${formatTime(incident.declaredAt)}</option>`).join('');
+        incidentSelect.innerHTML = options || '<option value="">No incidents yet</option>';
+        selectedIncidentId = data.incidents.some((incident) => incident.id === current) ? current : (data.incidents.at(-1)?.id ?? '');
+        incidentSelect.value = selectedIncidentId;
+      }
+
+      async function markSafe(employeeId) {
+        if (!selectedIncidentId) return;
+        const response = await fetch(`/api/incidents/${encodeURIComponent(selectedIncidentId)}/manifest/${encodeURIComponent(employeeId)}/safe`, { method: 'POST' });
+        if (!response.ok) { status.textContent = 'Could not update safety status.'; return; }
+        status.textContent = 'Marked safe.';
+        await refreshManifest();
+      }
+
+      async function declareIncident(event) {
+        event.preventDefault();
+        const button = declareButton;
+        button.disabled = true;
+        status.textContent = 'Sending incident notification…';
+        try {
+          const response = await fetch('/api/incidents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: document.querySelector('#incident-title').value, protocol: document.querySelector('#incident-protocol').value }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Could not declare incident.');
+          selectedIncidentId = result.incidentId;
+          status.textContent = `Declared and sent to ${result.sent} device(s).`;
+          await refreshManifest();
+        } catch (error) {
+          status.textContent = error.message || 'Could not declare incident.';
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      async function resolveIncident() {
+        if (!selectedIncidentId) return;
+        resolveButton.disabled = true;
+        status.textContent = 'Sending resolution notification…';
+        try {
+          const response = await fetch(`/api/incidents/${encodeURIComponent(selectedIncidentId)}/resolve`, { method: 'POST' });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Could not resolve incident.');
+          status.textContent = `Resolved and sent to ${result.sent} device(s).`;
+          await refreshManifest();
+        } catch (error) {
+          status.textContent = error.message || 'Could not resolve incident.';
+          resolveButton.disabled = false;
+        }
+      }
+
+      async function refreshManifest() {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+          await refreshIncidents();
+          if (!selectedIncidentId) {
+            summary.replaceChildren();
+            content.className = 'empty';
+            content.textContent = 'Send a test incident from the Bouncer phone app to populate the manifest.';
+            title.textContent = 'Employee manifest';
+            status.textContent = 'Waiting for an incident.';
+          declareButton.disabled = false;
+          resolveButton.disabled = true;
+            return;
+          }
+          const response = await fetch(`/api/incidents/${encodeURIComponent(selectedIncidentId)}/manifest`);
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Manifest could not be loaded.');
+          const rows = data.manifest;
+          const acknowledged = rows.filter((employee) => employee.response === 'acknowledged').length;
+          const safe = rows.filter((employee) => employee.safety === 'safe').length;
+          const manual = rows.filter((employee) => employee.presence === 'manual-check').length;
+          summary.innerHTML = `<div class="metric"><strong>${rows.length}</strong><span>Active employees</span></div><div class="metric"><strong>${acknowledged} / ${rows.length}</strong><span>Acknowledged</span></div><div class="metric"><strong>${safe} / ${rows.length}</strong><span>Marked safe</span></div><div class="metric"><strong>${manual}</strong><span>Manual check</span></div>`;
+          title.textContent = `${data.incident.title} · ${data.incident.status}`;
+          resolveButton.disabled = data.incident.status !== 'active';
+          declareButton.disabled = data.incident.status === 'active';
+          resolveButton.textContent = data.incident.status === 'active' ? 'Resolve incident' : 'Resolved';
+          content.className = 'table-wrap';
+          content.innerHTML = `<table><thead><tr><th>Employee</th><th>Response</th><th>Location</th><th>Safety check</th><th>Action</th></tr></thead><tbody>${rows.map((employee) => `<tr><td>${employee.name}<small>${employee.email}</small></td><td>${employee.response === 'acknowledged' ? pill('Acknowledged', 'green') : pill('Unacknowledged', 'amber')}<small>${formatTime(employee.acknowledgedAt)}</small></td><td>${employee.presence === 'location-received' ? pill('Location received', 'green') : pill('Manual check', 'gray')}</td><td>${employee.safety === 'safe' ? pill(`Safe · ${formatTime(employee.safetyUpdatedAt)}`, 'green') : pill('Unconfirmed', 'amber')}</td><td><button data-safe="${employee.employeeId}" ${employee.safety === 'safe' ? 'disabled' : ''}>Mark safe</button></td></tr>`).join('')}</tbody></table>`;
+          content.querySelectorAll('[data-safe]').forEach((button) => button.addEventListener('click', () => markSafe(button.dataset.safe)));
+          status.textContent = data.incident.status === 'resolved'
+            ? `Resolved ${formatTime(data.incident.resolvedAt)} · updates every 5 seconds`
+            : `Declared ${formatTime(data.incident.declaredAt)} · updates every 5 seconds`;
+        } catch (error) {
+          status.textContent = error.message || 'Could not refresh manifest.';
+        } finally {
+          refreshing = false;
+        }
+      }
+
+      incidentSelect.addEventListener('change', () => { selectedIncidentId = incidentSelect.value; void refreshManifest(); });
+      document.querySelector('#declare-form').addEventListener('submit', declareIncident);
+      resolveButton.addEventListener('click', resolveIncident);
+      void refreshManifest();
+      setInterval(() => void refreshManifest(), 5000);
+    </script>
+  </body>
+</html>
