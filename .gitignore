@@ -1,0 +1,3 @@
+# Local caches created for Android builds in this workspace
+/.android-user/
+/.gradle-cache/
