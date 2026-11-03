@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "807955590515",
+    "project_id": "bouncer-c922e",
+    "storage_bucket": "bouncer-c922e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:807955590515:android:bd42e4ed6e141c00d36906",
+        "android_client_info": {
+          "package_name": "com.bouncer.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0SqOv_L3xe0_zinMecvgJS_gJ1PnsdFk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

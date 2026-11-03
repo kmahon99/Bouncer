@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Bouncer",
+    "slug": "bouncer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.bouncer.app",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "incidents"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6032dafa-628a-481b-b52d-e7ec93aa1721"
+      }
+    },
+    "owner": "kmahon99"
+  }
+}
