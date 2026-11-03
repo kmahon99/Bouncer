@@ -1,8 +1,8 @@
 # Bouncer — Initial MVP Requirements
 
-**Status:** Draft requirements  
-**Version:** 0.3  
-**Updated:** 29 October 2026
+**Status:** Draft requirements; reconciled with current product directives, still awaiting platform validation
+**Version:** 0.4
+**Updated:** 3 November 2026
 
 ## 1. Scope and terminology
 
@@ -15,7 +15,7 @@ The initial roster for an incident is all active employees associated with the w
 - **Device delivery:** whether a phone or work device has acknowledged receipt of the cloud broadcast. This is not the employee acknowledgement.
 - **Employee response:** whether the employee opened the incident from the notification/app and acknowledged it.
 - **Location presence:** whether an enabled location check reports the employee's device within the incident workplace perimeter. This does not prove safety.
-- **Manual check / Safe:** before location tracking is enabled, the employee is listed as **Manual check**. During an incident, a manager may record **Safe** after a manual check. **Safe** is a manager-entered outcome, not a system inference.
+- **Location availability / manual follow-up / Safe:** location permission, location observation, employee acknowledgement, and manager safety outcome are separate facts. A person with no usable location remains for manual follow-up even if acknowledged. **Safe** is a manager-entered outcome, not a system inference.
 - **Seen:** a critical-device popup was closed by its cancel button. This is a device-notification state, not incident resolution or employee safety.
 
 ### Roles
@@ -73,7 +73,7 @@ The initial roster for an incident is all active employees associated with the w
 
 ### E. Employee Android app and location presence
 
-- **EMP-01** The Android app shall receive incident notifications for workplaces with which the employee is associated.
+- **EMP-01** The service shall attempt incident notifications to every registered employee phone associated with the customer, including when location is unavailable, permission is denied, or an on-site perimeter result cannot be determined. A location result shall not suppress the incident prompt.
 - **EMP-02** The notification shall state that an incident is active and instruct the employee to open the app to view the instructions.
 - **EMP-03** Opening/tapping the incident notification shall launch the app at the relevant incident and automatically acknowledge the incident for the signed-in employee.
 - **EMP-04** If the employee opens the incident from within the app rather than the notification, the app shall provide an equivalent acknowledgement action.
@@ -81,20 +81,20 @@ The initial roster for an incident is all active employees associated with the w
 - **EMP-06** The app shall show whether the incident remains active or has been resolved.
 - **EMP-07** The app shall record the employee acknowledgement event against the employee and incident and report it to the service.
 - **EMP-08** If the service cannot confirm receipt of an acknowledgement, the app shall show it as pending or failed rather than falsely confirming server receipt.
-- **EMP-09** On first use, the app shall request precise location permission before enabling incident workplace-perimeter checks. The employee must be able to see and manage the permission state. If the employee denies required notification or location access, the incident-linked employee record shall show **Denied access**.
-- **EMP-10** Until the employee has opened the app and enabled location tracking, the employee's incident accounting state shall default to **Manual check**.
-- **EMP-11** When an employee opens the incident notification, the Android app shall immediately read the permitted device location and relay it with the incident acknowledgement. While the incident screen remains visible, the app shall refresh the location every five seconds when permission and device conditions allow. It shall evaluate each observation against the incident workplace perimeter and record its timestamp. When the app leaves the foreground, five-second refreshes stop; the manifest shall show the last observation time and mark it stale when appropriate. Background location tracking is out of scope for the MVP.
+- **EMP-09** Location services and the required app location permission shall be prerequisites for ordinary app features that need location, including future app-based door entry. This prerequisite shall not block the incident-only experience: employees must be able to read active incident instructions and acknowledge without location permission. Notification permission and location permission are separate states.
+- **EMP-10** The service shall track employee acknowledgement independently from location availability. If acknowledgement is received but location is denied, revoked, disabled, stale, or unavailable, the manager view shall show the separate facts and an appropriate label such as **Acknowledged — location unavailable**; the employee remains eligible for manual follow-up.
+- **EMP-11** Fine-grained location collection shall begin only after employee acknowledgement, only during an active incident, and only when permission is granted. The product target is intermittent reporting at approximately five-second intervals when OS, app lifecycle, device, battery, and network permit. The app shall record observation time and accuracy, and the manager view shall show freshness. Silence shall not be interpreted as off-site or safe. The app shall stop collection when the incident ends. Background behavior and achievable cadence must be validated on supported Android versions; do not promise a five-second guarantee.
 - **EMP-12** Location presence shall be shown separately from employee acknowledgement and manager-entered safety status. Presence shall never automatically mark an employee **Safe**.
-- **EMP-13** If location permission is denied, the incident-linked employee record shall show **Denied access**. If the employee/device cannot be reached after the delivery retry process, the record shall show **Unreachable**. If location is disabled, stale, or unavailable without a denial, the accounting state shall remain **Manual check** and the manager shall be able to distinguish the reason where available.
-- **EMP-14** The MVP shall not provide the incident manager with a live map or continuous employee location tracking.
+- **EMP-13** The system shall distinguish notification delivery failure/unreachability from location permission denial or unavailability. A location permission denial shall not prevent incident acknowledgement. If the employee/device cannot be reached after the delivery retry process, the record shall show **Unreachable**, which does not mean safe or off-site.
+- **EMP-14** During an active incident, the manager view may show the latest incident-scoped location reports and configured assembly area with timestamps, accuracy, and stale state. It shall not collect or display continuous location outside an active incident or present a stale observation as a current position.
 
 ### F. Incident manifest and manual safety checks
 
 - **MAN-01** The incident manager shall be able to view the incident manifest for all active employees associated with the incident workplace.
-- **MAN-02** The manifest shall present distinct fields or indicators for employee response, device delivery, and location/accounting state so they cannot be confused. The incident-linked employee record shall also expose **Denied access** and **Unreachable** where applicable.
+- **MAN-02** The manifest shall present distinct fields or indicators for employee response, device delivery, location permission/availability/freshness, and manual safety outcome so they cannot be confused. It shall distinguish location unavailability from notification/device unreachability.
 - **MAN-03** Employee response shall include at least **Unacknowledged** and **Acknowledged** states.
 - **MAN-04** Device delivery shall distinguish **Pending delivery** from **Delivered** for each target device, with a failure/offline state when known.
-- **MAN-05** Location/accounting shall show **Manual check** until the employee enables location tracking and a usable location result is available; it may then show **Within workplace perimeter** or **Outside workplace perimeter** with the observation time.
+- **MAN-05** The roster shall show location classification and last observation time independently from acknowledgement. It may show **Within workplace perimeter**, **Outside workplace perimeter**, **Unknown**, or stale/unavailable with the observation's age/accuracy where available. Unknown or stale location remains for manual follow-up.
 - **MAN-06** During an incident, an authorized manager shall be able to select an employee listed as **Manual check** and mark them **Safe** after an offline/manual check.
 - **MAN-07** A manager-entered **Safe** outcome shall record the acting manager, timestamp, and incident. It shall be visibly distinguished from automatic/system state.
 - **MAN-08** The manifest shall retain unacknowledged and unresolved manual-check employees for follow-up until the incident is resolved; resolution shall not silently relabel them as safe.
@@ -135,7 +135,7 @@ The initial roster for an incident is all active employees associated with the w
 
 - **NFR-01 Reliability:** Declaration, notification delivery, acknowledgement, and resolution shall use retry and recovery behavior and expose failures. Device broadcasts shall retry every five seconds; the initial delivery target is within one minute for reachable devices. Broader service availability targets remain to be set before a production pilot.
 - **NFR-02 Security:** Data in transit and stored data shall be protected using appropriate security controls; access shall follow least privilege.
-- **NFR-03 Privacy:** Location is used for incident workplace-perimeter presence only in the MVP. An immediate location read occurs when the employee opens an incident notification; five-second refreshes are desired only while that incident screen remains visible. There shall be no background location tracking or manager-facing live map in the MVP. Permission purpose and behavior must be clear to employees.
+- **NFR-03 Privacy:** Location is used only during an active incident and only after employee acknowledgement and permission. The target is intermittent reporting at approximately five-second intervals, subject to measured OS/app/device constraints; show observation freshness/accuracy and stop on incident end. A manager may see the latest incident-scoped report, but no continuous tracking outside incidents or historical movement trail is in scope. Permission purpose and behavior must be clear to employees.
 - **NFR-04 Usability:** Employees and managers shall be able to identify incident state and next action quickly under stressful conditions.
 - **NFR-05 Accessibility:** Essential incident instructions and controls shall not rely on color alone and shall support readable text and assistive technologies on supported platforms.
 - **NFR-06 Auditability:** Important incident and configuration actions shall include actor/device and timestamp information sufficient for review.
@@ -147,8 +147,8 @@ The initial roster for an incident is all active employees associated with the w
 1. **Declare and deliver:** Given an authorized manager and configured incident, when the manager declares it for a workplace, then the service creates an incident record and pings active roster phones and provisioned work devices every five seconds until each device acknowledges receipt or the incident is resolved; the initial target is delivery acknowledgement within one minute for reachable devices.
 2. **Open notification and acknowledge:** Given an employee with the Android app, when they open the incident notification, then the app opens the corresponding incident, records the employee acknowledgement, and shows that incident's protocol and assembly details.
 3. **Separate delivery from response:** Given a phone or work device has acknowledged the cloud broadcast but the employee has not opened the phone incident, then the manager sees device delivery as Delivered and employee response as Unacknowledged.
-4. **Default manual check:** Given an active employee has not opened the app and enabled location tracking, when the manager views the incident manifest, then the employee is in Manual check for accounting purposes. If location permission was denied, the incident record identifies Denied access. If the device remains unreachable after retries, the record identifies Unreachable.
-5. **Perimeter presence:** Given an employee has enabled location permission and a usable location observation is available, when an incident is declared at a workplace associated with that employee, then opening the notification triggers an immediate perimeter check and relays the result with the acknowledgement; while the incident screen remains visible, the app refreshes every five seconds when possible and shows each result and observation time without marking the employee Safe. Once the app leaves the foreground, refreshes stop and the last observation is marked stale when appropriate.
+4. **Acknowledgement without location:** Given an active employee receives an incident prompt but denies, revokes, or cannot provide location, when they open the incident-only experience, then they can read instructions and acknowledge; the manifest records acknowledgement separately from location availability and retains the person for manual follow-up.
+5. **Perimeter presence:** Given an employee has acknowledged and enabled location permission, when a usable incident-scoped observation is available, then the app may report location at the target interval of approximately five seconds while platform conditions allow; the manager sees the latest result, timestamp, accuracy, and freshness without the system marking the employee Safe. Missing subsequent reports make location stale/unavailable, not off-site. Collection stops when the incident ends.
 6. **Manager marks safe:** Given an employee is in Manual check, when an authorized manager selects the employee and marks them Safe after an offline check, then the audit records the manager, time, and incident and the manifest distinguishes this manual outcome.
 7. **Resolve and audit:** Given an active incident, when an authorized manager resolves it, then work-device apps receive the resolved state and the completed audit is available in the customer portal, including people not accounted for at resolution.
 8. **Full overlay:** Given a Windows device is configured for Full overlay, when it receives an incident, then the overlay directs the employee to the phone and cannot be dismissed by an ordinary employee action; it closes when the service sends resolution.
@@ -163,7 +163,7 @@ The initial roster for an incident is all active employees associated with the w
 
 - Keycard, physical access-control, or building-management integration.
 - Desk-booking integration and seating maps.
-- Manager-facing live employee location maps or continuous tracking.
+- Location collection outside an active incident, or a historical continuous movement trail. The manager may see the latest incident-scoped observations while the incident is active.
 - Multiple simultaneous incidents at a single workplace.
 - Automated employee removal through HRIS/API integration.
 - Automated confirmation that an employee is safe based only on acknowledgement or location presence.
@@ -173,7 +173,7 @@ The initial roster for an incident is all active employees associated with the w
 
 1. **Notification flow:** Notification states that an incident is active and tells the employee to open the app. Opening/tapping it opens the matching incident, automatically acknowledges it, and displays instructions.
 2. **Roster:** The incident roster contains all active employees associated with the workplace where the incident is declared.
-3. **Location and default accounting:** An employee starts in **Manual check** until they open the app and enable precise location tracking. The enabled location may be checked against the relevant workplace perimeter; it is not proof of safety. The MVP has no manager-facing live location map. MVP perimeter is a rectangular box drawn on a map; custom polygon drawing is deferred.
+3. **Location and accounting:** Incident prompts are attempted for every registered employee phone regardless of location result. Employees can read instructions and acknowledge without location permission. Acknowledgement, permission, perimeter classification, freshness, and human safety outcome remain separate. Fine-grained location is incident-scoped and begins only after acknowledgement and permission; approximately five-second updates are a target subject to Android validation, not a guarantee. During the incident the manager view shows the latest reports with freshness/accuracy, not a historical continuous trail. The MVP perimeter is rectangular; custom polygon drawing is deferred.
 4. **Manual safety check:** During an incident, the manager selects an employee in the manifest and marks them **Safe** after an offline check. The service records who and when. Employees without an app or unable to respond remain visible for follow-up.
 5. **Administration:** A customer web portal manages protocols, multiple office locations, employee roles, device configuration, and incident-record retention. Billing is outside the pilot; Stripe is anticipated for a later SaaS release.
 6. **Multiple workplaces/incidents:** Employees may be associated with several workplaces. For a given incident, the relevant geofence is the incident workplace perimeter. The MVP permits only one active incident per workplace; overlapping incidents do not need support.
@@ -181,17 +181,20 @@ The initial roster for an incident is all active employees associated with the w
 8. **Pilot identity and records:** Use a third-party profile/authentication and session-management provider. Employee identity uses name and work email. Customers set a retention period to match policy. Each incident creates a real-time record of incident details, responses and times, and people not accounted for. Completed audits are reviewable in the customer portal. Automatic employee removal through HR/API integration is deferred.
 9. **Platforms:** Android 13 or later for employee phones and Windows 10 for work devices. The target is the initial Windows 10 release if technically feasible; validate compatibility during technical discovery.
 10. **Critical-device popup:** A configured critical device shows a bottom-right popup with a cancel button. Canceling records the device notification as **Seen**; it does not resolve the incident or mark an employee safe.
-11. **Unavailable access/delivery:** If an employee denies location or notification access, record **Denied access** in the incident-linked employee record. If their device remains unreachable through retries, record **Unreachable**. These states do not mean safe or acknowledged.
+11. **Unavailable permission/delivery:** Location-permission denial or unavailable location must not block the incident-only instructions or acknowledgement. Record response and location availability separately; show **Acknowledged — location unavailable** when appropriate. Notification delivery failure or a device that remains unreachable through retries is a separate **Unreachable** delivery state. Neither state means safe or off-site.
 12. **Retention:** Customers configure incident retention to meet company policy and applicable data-protection rules for their region; records are retained as long as practically permitted under that policy and law.
 13. **Authentication:** Use a third-party profile/authentication and session-management provider, with provider selection deferred to technical discovery. Pilot identity uses name and work email.
 14. **Billing:** Billing is not needed for the pilot. Stripe is the anticipated provider for a later release.
 
 ## 7. Remaining implementation questions
 
-These are implementation details rather than unresolved product direction:
+The following product/technical details remain open and must be resolved before dependent stories become Ready:
 
-- What location freshness window should apply, and how should stale or inaccurate GPS be shown? Opening the incident notification triggers an immediate location read; five-second refreshes continue only while the incident screen is visible. The MVP perimeter shape is a rectangular box.
+- What location freshness window should turn a last report stale, and how should low-accuracy or missing GPS be represented? The target is intermittent reporting around every five seconds after acknowledgement during an active incident; foreground/background capability must be measured rather than assumed.
+- What should employees whose phone reports confidently off-site see, and which employee/device groups receive a laptop restriction when presence is unknown?
+- What is the audited abort behavior and employee/device messaging after a false alarm?
+- What evidence and recorded human judgement are sufficient to resolve a person whose device/location cannot be reached?
 - Which third-party identity/profile and session-management provider should be selected during technical discovery?
 - What exact data is deleted or retained when an incident reaches its policy retention limit, including backups and derived analytics, while meeting applicable regional rules?
 - Can Windows 10 initial release be supported by the work-device implementation and deployment method?
-- What is the technical behavior when Android notification permission is denied, and how will **Denied access** and **Unreachable** be surfaced in employee incident records and manifests?
+- What delivery state can the Android client report when notification permission is denied, and how should it remain distinct from employee acknowledgement and location permission state?

@@ -1,6 +1,12 @@
 # Bouncer hosted backend discovery
 
-**Status:** Supabase selected for the pilot implementation path; no hosted project has been created. Production region and customer auth requirements remain launch decisions.
+**Status:** Supabase selected as the current pilot evaluation path; initial local schema work exists, but no hosted project or backend functions have been created. Updated 3 November 2026.
+
+## Implementation status — 3 November 2026
+
+The repository contains `supabase/config.toml`, an initial schema migration, and synthetic seed records. The local Supabase setup has not yet been confirmed as applied; no hosted Supabase project exists. The migration enables RLS and establishes tenant-scoped manager read policies while denying direct client writes. Authenticated Edge Functions, notification outbox/worker, push delivery integration, audit mutation paths, and RLS/domain tests remain unimplemented. This schema is not approved for real employee or location data.
+
+There is also an ASP.NET Core/SignalR control prototype and a separate local Expo test server. Both are unauthenticated prototypes. Before connecting the Windows agent or Android app to persistent data, decide whether ASP.NET remains the authenticated device gateway or is replaced by a single Supabase-backed server boundary. Do not let these prototypes independently own incident state.
 
 ## Recommendation
 

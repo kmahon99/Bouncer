@@ -47,12 +47,15 @@ The MVP focuses on fire evacuation for regular offices, using an Android employe
 
 ## Current repository context
 
-The repository currently contains an early prototype:
+The repository currently contains early prototypes and feasibility work:
 
 - `Bouncer.Control` is an ASP.NET Core service with a SignalR hub and a `/lock` endpoint that broadcasts a lock event.
 - `Bouncer.Agent` is an Avalonia Windows desktop application with an overlay service that can show a topmost window on detected screens.
+- `mobile/` is an Expo/React Native Android push and incident-flow prototype, with a local in-memory development server and manager page. It is not an authenticated or persistent backend.
+- `supabase/` contains an initial schema, synthetic seed data, and local CLI configuration. No hosted project or authenticated incident API/worker has been created.
+- `bouncer-mobile-spike/` contains a partial, tracked Android feasibility spike with TypeScript state/location logic and tests. The fuller Expo Router UI currently being built/tested at `D:\bouncer-mobile-spike` is outside this repository and is not yet integrated as the canonical app.
 
-This prototype does not yet provide production authentication/authorization, tenant or site isolation, managed-device identity, incident lifecycle, acknowledgement/accountability state, location reporting, robust lock enforcement, or operational recovery. Treat all existing behavior as prototype behavior. Review and address these gaps before exposing functionality to real organizations or representing it as secure incident management.
+These prototypes do not yet provide a complete production system with authentication/authorization across clients, tenant or site isolation, managed-device identity, a complete incident lifecycle, reliable delivery, robust lock enforcement, or operational recovery. The local mobile server is unauthenticated and in-memory; the Supabase schema is an initial design only. Treat all existing behavior as prototype behavior. Review and address these gaps before exposing functionality to real organizations or representing it as secure incident management.
 
 ## Initial product scope
 

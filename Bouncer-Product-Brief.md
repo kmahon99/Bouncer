@@ -1,14 +1,18 @@
 # Bouncer — Product Brief
 
-**Status:** Initial concept brief  
-**Version:** 0.3  
-**Updated:** 29 October 2026
+**Status:** Working product brief; implementation remains prototype stage
+**Version:** 0.4
+**Updated:** 3 November 2026
 
 ## Summary
 
 Bouncer is a SaaS service for coordinating workplace incidents, with evacuations and fire drills as the first use cases. An incident manager declares an incident from Bouncer's administrative service. Employees receive a phone notification that directs them to open the app; opening the incident acknowledges it and displays the workplace's response instructions. Work devices display an incident overlay or a less intrusive popup. Managers monitor delivery, employee responses, and people who still need a manual safety check, then resolve the incident.
 
-The MVP is software-only, supporting Android phones and Windows 10/11 work devices. The customer web portal manages workplaces, employees, roles, protocols, device settings, retention policy, and billing.
+The MVP is software-only, targeting Android phones and Windows 10/11 work devices. A customer web portal is planned for workplaces, employees, roles, protocols, device settings, and retention. Billing and live door credentialing are outside the pilot scope.
+
+## Implementation status — 3 November 2026
+
+The repository now contains an Avalonia Windows overlay prototype, an ASP.NET Core/SignalR control prototype, an Expo Android push demo with a local in-memory server and manager page, and an initial Supabase schema with synthetic seed data. The separate Android feasibility spike has passing recorded TypeScript incident/location checks and an Android JavaScript bundle export. A development APK was installed on the user's phone, but QR scanner/app launch problems prevented successful scenario validation; the latest Release build is still blocked. These components are prototypes, not a secure or production incident-management service. The tracking status and outstanding validation are maintained in [the product backlog](docs/PRODUCT-BACKLOG.md) and [Android feasibility spike](docs/spikes/ANDROID-FEASIBILITY.md).
 
 ## Problem
 
@@ -31,7 +35,7 @@ Give workplaces a simple, dependable way to declare an incident, deliver the rel
 
 The app receives an incident notification stating that an incident is active and instructing the employee to open the app for directions. Opening the notification launches the relevant incident in the app and automatically records the employee acknowledgement. The incident view shows the response protocol and assembly-point details.
 
-Until an employee has opened the app and enabled location tracking, their manifest accounting status defaults to **Manual check**. Opening the incident notification immediately triggers a location read that is relayed to the server with the acknowledgement. While the incident screen remains visible, the app refreshes the location every five seconds when possible. Refreshes stop when the app leaves the foreground; the manager sees the last observation time and a stale state when appropriate. The MVP does not require background location tracking. This is a presence signal only; it does not prove that the employee is safe or has evacuated.
+Employee acknowledgement and location availability are separate. The employee can open incident-only instructions and acknowledge without location permission; the manifest then shows **Acknowledged — location unavailable** as appropriate and leaves the person for manual follow-up. Fine-grained reports are incident-scoped, start only after acknowledgement and permission, and target roughly five-second intervals while the OS, app, battery, and network permit. The manager sees report time, freshness, and accuracy; missed reports become stale and do not prove departure or safety. Location reporting stops when the incident ends. The five-second cadence and background behavior remain subject to Android validation.
 
 ### Incident manager manifest
 
@@ -76,7 +80,7 @@ Authentication and session management for the pilot will use a third-party ident
 - Desk-booking integration or live seating maps.
 - Polygon-based workplace perimeter drawing (the MVP uses a drawn rectangular box).
 - Customer billing and subscription checkout in the pilot; Stripe is anticipated for a later release.
-- Live employee location tracking for manager coordination. Location checks are incident-scoped, begin when the employee opens the incident notification, and are not a continuous manager-facing location feed.
+- Location collection outside an active incident or a historical continuous movement trail. The manager may view the latest incident-scoped location observations during an active incident, with freshness and accuracy.
 - Multiple simultaneous active incidents at one workplace.
 - Automated confirmation that a person is safe based solely on acknowledgement or geofence presence.
 - Automated employee removal through HR integration; customer administrators manage the active employee roster manually.
