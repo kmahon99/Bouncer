@@ -50,7 +50,9 @@ npx expo start --dev-client --port 8083 --lan
 
 Open the installed Bouncer development build (not Expo Go). If automatic discovery is empty or the scanner is unavailable, choose **Enter URL manually** and enter `http://<laptop-ip>:8083` (the Expo development server URL). Both devices need to be on the same Wi-Fi network. The scanner is not needed for this connection.
 
-Once the app opens, the **Local server address** is prefilled from the ignored `.env.local` file. Confirm it is `http://<laptop-ip>:3000`, then press **Enable incident notifications** and **Send test incident to this device**. Opening the Android notification records acknowledgement first, then obtains a one-time foreground location (if permitted) and relays it to the local server.
+Once the app opens, the **Local server address** is prefilled from the ignored `.env.local` file. Confirm it is `http://<laptop-ip>:3000`, then press **Enable incident notifications**. On the laptop, open `http://localhost:3000/admin`, enter the assembly point's latitude and longitude (or try the browser location button) and radius, then declare an incident. Opening the Android notification records acknowledgement first, then obtains a one-time foreground location (if permitted) and relays it to the local server. At the assembly point, press **Report safe at assembly point**; the app requests a fresh foreground fix and the server records the report only if the accuracy bounds fit inside the configured area.
+
+The app reports success only after the local server confirms it. Permission denial, stale or uncertain GPS, an outside result, and a network failure leave the employee in follow-up. The manager manifest distinguishes an employee-reported result from **Manager mark safe**. This remains an unauthenticated, in-memory local prototype; use synthetic test data only.
 
 The server exposes `GET /health` and `GET /api/incidents` for local inspection. Incident records and push tokens disappear when the server restarts.
 
@@ -58,7 +60,7 @@ The server exposes `GET /health` and `GET /api/incidents` for local inspection. 
 
 With the local server running, open `http://<laptop-ip>:3000/admin` in a browser on the laptop. Send a test incident from the phone; the manifest refreshes every five seconds and shows the sample employee roster, acknowledgement, whether a one-time location update was received or requires a manual check, and whether the manager has marked the employee safe. Use **Mark safe** after the manual check.
 
-The dashboard can also declare an incident by entering a title and response instructions, then **Declare & notify**. It sends an incident push to registered devices. Afterward, **Resolve incident** changes its state and sends a resolution push; the phone clears the active incident view when it receives the resolution while open or when the employee opens the resolution notification. Only one incident can be active at a time. The phone app's test button still sends the default Fire drill test incident.
+The dashboard declares an incident by entering a title, response instructions, and assembly point, then **Declare & notify**. It sends an incident push to registered devices. Afterward, **Resolve incident** changes its state and sends a resolution push; the phone clears the active incident view when it receives the resolution while open or when the employee opens the resolution notification. Only one incident can be active at a time. The phone app's test button sends a default Fire drill without an assembly area, so use the dashboard to test **Report safe**.
 
 This demo roster uses placeholder identities (`Employee 001`, etc.). The first registered device is associated with the first unused placeholder. The manifest and safety changes are in memory, and the page has no authentication; use it only on a trusted local network. The prototype location field is stored in the local server memory but is not displayed in the manager page.
 

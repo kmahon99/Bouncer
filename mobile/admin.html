@@ -16,7 +16,7 @@
       .toolbar { margin: 0 0 16px; }
       .declare { background: white; border: 1px solid #e0e7ed; border-radius: 12px; margin-bottom: 18px; padding: 16px; }
       .declare h2 { font-size: 17px; margin: 0 0 12px; }
-      .declare-fields { display: grid; gap: 10px; grid-template-columns: 1fr 2fr auto; }
+      .declare-fields { display: grid; gap: 10px; grid-template-columns: 1fr 2fr 1fr 1fr 1fr auto; }
       .declare input, .declare textarea { border: 1px solid #cbd6e1; border-radius: 8px; font: inherit; padding: 9px 12px; width: 100%; }
       .declare textarea { min-height: 42px; resize: vertical; }
       .danger { background: #a33a36; border-color: #a33a36; }
@@ -57,8 +57,13 @@
         <form id="declare-form" class="declare-fields">
           <input id="incident-title" aria-label="Incident title" placeholder="Incident title" required value="Fire drill" />
           <textarea id="incident-protocol" aria-label="Response instructions" placeholder="Response instructions" required>Leave by the nearest safe exit. Go to the north car park assembly point. Follow workplace instructions and do not re-enter until the incident manager says it is safe.</textarea>
+          <input id="assembly-latitude" aria-label="Assembly point latitude" type="number" min="-90" max="90" step="any" placeholder="Assembly latitude" required />
+          <input id="assembly-longitude" aria-label="Assembly point longitude" type="number" min="-180" max="180" step="any" placeholder="Assembly longitude" required />
+          <input id="assembly-radius" aria-label="Assembly area radius in meters" placeholder="Radius (m)" type="number" min="1" step="1" value="10" required />
           <button type="submit">Declare &amp; notify</button>
         </form>
+        <button id="use-current-location" type="button">Use this browser's location as assembly point</button>
+        <small>Set the center coordinates and radius before declaring. Use your workplace's configured assembly point; these values are included in incident notifications.</small>
       </section>
       <div class="toolbar">
         <label>Incident <select id="incident"><option value="">No incidents yet</option></select></label>
@@ -112,7 +117,15 @@
           const response = await fetch('/api/incidents', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: document.querySelector('#incident-title').value, protocol: document.querySelector('#incident-protocol').value }),
+            body: JSON.stringify({
+              title: document.querySelector('#incident-title').value,
+              protocol: document.querySelector('#incident-protocol').value,
+              assemblyArea: {
+                latitude: Number(document.querySelector('#assembly-latitude').value),
+                longitude: Number(document.querySelector('#assembly-longitude').value),
+                radiusMeters: Number(document.querySelector('#assembly-radius').value),
+              },
+            }),
           });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || 'Could not declare incident.');
@@ -162,15 +175,24 @@
           if (!response.ok) throw new Error(data.error || 'Manifest could not be loaded.');
           const rows = data.manifest;
           const acknowledged = rows.filter((employee) => employee.response === 'acknowledged').length;
-          const safe = rows.filter((employee) => employee.safety === 'safe').length;
+          const safe = rows.filter((employee) => employee.safetyReport?.status === 'employee_reported_safe' || employee.managerSafety?.status === 'manager_marked_safe').length;
           const manual = rows.filter((employee) => employee.presence === 'manual-check').length;
-          summary.innerHTML = `<div class="metric"><strong>${rows.length}</strong><span>Active employees</span></div><div class="metric"><strong>${acknowledged} / ${rows.length}</strong><span>Acknowledged</span></div><div class="metric"><strong>${safe} / ${rows.length}</strong><span>Marked safe</span></div><div class="metric"><strong>${manual}</strong><span>Manual check</span></div>`;
+          summary.innerHTML = `<div class="metric"><strong>${rows.length}</strong><span>Active employees</span></div><div class="metric"><strong>${acknowledged} / ${rows.length}</strong><span>Acknowledged</span></div><div class="metric"><strong>${safe} / ${rows.length}</strong><span>Outcomes recorded</span></div><div class="metric"><strong>${manual}</strong><span>Manual check</span></div>`;
           title.textContent = `${data.incident.title} · ${data.incident.status}`;
           resolveButton.disabled = data.incident.status !== 'active';
           declareButton.disabled = data.incident.status === 'active';
           resolveButton.textContent = data.incident.status === 'active' ? 'Resolve incident' : 'Resolved';
           content.className = 'table-wrap';
-          content.innerHTML = `<table><thead><tr><th>Employee</th><th>Response</th><th>Location</th><th>Safety check</th><th>Action</th></tr></thead><tbody>${rows.map((employee) => `<tr><td>${employee.name}<small>${employee.email}</small></td><td>${employee.response === 'acknowledged' ? pill('Acknowledged', 'green') : pill('Unacknowledged', 'amber')}<small>${formatTime(employee.acknowledgedAt)}</small></td><td>${employee.presence === 'location-received' ? pill('Location received', 'green') : pill('Manual check', 'gray')}</td><td>${employee.safety === 'safe' ? pill(`Safe · ${formatTime(employee.safetyUpdatedAt)}`, 'green') : pill('Unconfirmed', 'amber')}</td><td><button data-safe="${employee.employeeId}" ${employee.safety === 'safe' ? 'disabled' : ''}>Mark safe</button></td></tr>`).join('')}</tbody></table>`;
+          content.innerHTML = `<table><thead><tr><th>Employee</th><th>Response</th><th>Location</th><th>Accountability</th><th>Action</th></tr></thead><tbody>${rows.map((employee) => {
+            const accountability = employee.managerSafety?.status === 'manager_marked_safe'
+              ? pill(`Manager marked safe · ${formatTime(employee.managerSafety.markedAt)}`, 'green')
+              : employee.safetyReport?.status === 'employee_reported_safe'
+                ? pill(`Employee reported safe · ${formatTime(employee.safetyReport.reportedAt)}`, 'green')
+                : employee.safetyReport?.reason
+                  ? pill(`Follow-up · ${employee.safetyReport.reason.replaceAll('_', ' ')}`, 'amber')
+                  : pill('Follow-up required', 'amber');
+            return `<tr><td>${employee.name}<small>${employee.email}</small></td><td>${employee.response === 'acknowledged' ? pill('Acknowledged', 'green') : pill('Unacknowledged', 'amber')}<small>${formatTime(employee.acknowledgedAt)}</small></td><td>${employee.presence === 'location-received' ? pill('Location received', 'green') : pill('Manual check', 'gray')}</td><td>${accountability}</td><td><button data-safe="${employee.employeeId}" ${employee.managerSafety?.status === 'manager_marked_safe' ? 'disabled' : ''}>Manager mark safe</button></td></tr>`;
+          }).join('')}</tbody></table>`;
           content.querySelectorAll('[data-safe]').forEach((button) => button.addEventListener('click', () => markSafe(button.dataset.safe)));
           status.textContent = data.incident.status === 'resolved'
             ? `Resolved ${formatTime(data.incident.resolvedAt)} · updates every 5 seconds`
@@ -185,6 +207,15 @@
       incidentSelect.addEventListener('change', () => { selectedIncidentId = incidentSelect.value; void refreshManifest(); });
       document.querySelector('#declare-form').addEventListener('submit', declareIncident);
       resolveButton.addEventListener('click', resolveIncident);
+      document.querySelector('#use-current-location').addEventListener('click', () => {
+        if (!navigator.geolocation) { status.textContent = 'Browser location is unavailable; enter the coordinates manually.'; return; }
+        status.textContent = 'Requesting this browser’s location…';
+        navigator.geolocation.getCurrentPosition(({ coords }) => {
+          document.querySelector('#assembly-latitude').value = coords.latitude;
+          document.querySelector('#assembly-longitude').value = coords.longitude;
+          status.textContent = 'Assembly point coordinates filled from this browser. Confirm they match the actual point before declaring.';
+        }, () => { status.textContent = 'Could not read browser location; enter assembly coordinates manually.'; }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+      });
       void refreshManifest();
       setInterval(() => void refreshManifest(), 5000);
     </script>

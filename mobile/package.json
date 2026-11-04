@@ -24,6 +24,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test": "node --test",
     "dev:server": "node dev-server.mjs",
     "lint": "expo lint"
   },

@@ -1,6 +1,8 @@
 import {
   classifyLocationFreshness,
   classifyPerimeter,
+  evaluateAssemblySafeReport,
+  getResolutionReadiness,
   getIncidentRosterState,
 } from './incidentState';
 
@@ -45,6 +47,7 @@ describe('getIncidentRosterState', () => {
     ).toEqual({
       presence: 'on_site',
       location: 'stale',
+      accountability: 'follow_up_required',
       manualFollowUpRequired: true,
       acknowledgementLabel: 'Acknowledged — location stale',
     });
@@ -56,8 +59,110 @@ describe('getIncidentRosterState', () => {
     ).toEqual({
       presence: 'unknown',
       location: 'unavailable',
+      accountability: 'follow_up_required',
       manualFollowUpRequired: true,
       acknowledgementLabel: 'Acknowledged — location unavailable',
     });
+  });
+
+  it('does not treat an off-site phone report as an automatic accountability exemption', () => {
+    expect(
+      getIncidentRosterState('off_site', true, true, 'current'),
+    ).toMatchObject({
+      presence: 'off_site',
+      accountability: 'follow_up_required',
+      manualFollowUpRequired: true,
+    });
+  });
+
+  it('shows employee-reported safe separately from manager-confirmed safe', () => {
+    expect(
+      getIncidentRosterState(
+        'on_site',
+        true,
+        true,
+        'current',
+        'employee_reported_safe',
+      ),
+    ).toMatchObject({
+      accountability: 'employee_reported_safe',
+      manualFollowUpRequired: false,
+    });
+  });
+});
+
+describe('evaluateAssemblySafeReport', () => {
+  const eligibleReport = {
+    incidentStatus: 'active' as const,
+    acknowledged: true,
+    locationPermissionGranted: true,
+    locationFreshness: 'current' as const,
+    assemblyAreaResult: 'on_site' as const,
+  };
+
+  it('accepts an explicit report only with a fresh location fix inside the assembly area', () => {
+    expect(evaluateAssemblySafeReport(eligibleReport)).toEqual({
+      status: 'employee_reported_safe',
+    });
+  });
+
+  it('does not accept reports outside the assembly area or with uncertain bounds', () => {
+    expect(
+      evaluateAssemblySafeReport({ ...eligibleReport, assemblyAreaResult: 'off_site' }),
+    ).toEqual({ status: 'not_confirmed', reason: 'outside_assembly_area' });
+    expect(
+      evaluateAssemblySafeReport({ ...eligibleReport, assemblyAreaResult: 'unknown' }),
+    ).toEqual({ status: 'not_confirmed', reason: 'location_uncertain' });
+  });
+
+  it('does not accept a report before acknowledgement or when location is unavailable/stale', () => {
+    expect(
+      evaluateAssemblySafeReport({ ...eligibleReport, acknowledged: false }),
+    ).toEqual({ status: 'not_confirmed', reason: 'acknowledgement_required' });
+    expect(
+      evaluateAssemblySafeReport({ ...eligibleReport, locationPermissionGranted: false }),
+    ).toEqual({ status: 'not_confirmed', reason: 'location_unavailable' });
+    expect(
+      evaluateAssemblySafeReport({ ...eligibleReport, locationFreshness: 'stale' }),
+    ).toEqual({ status: 'not_confirmed', reason: 'location_stale' });
+  });
+
+  it('does not accept a report after the incident has ended', () => {
+    expect(
+      evaluateAssemblySafeReport({ ...eligibleReport, incidentStatus: 'aborted' }),
+    ).toEqual({ status: 'not_confirmed', reason: 'incident_not_active' });
+  });
+});
+
+describe('getResolutionReadiness', () => {
+  it('requires the manager hazard-clear decision even when everyone has an outcome', () => {
+    expect(
+      getResolutionReadiness(
+        [{ accountability: 'employee_reported_safe' }, { accountability: 'manager_marked_safe' }],
+        false,
+      ),
+    ).toEqual({ canResolve: false, blockers: ['hazard_not_cleared'] });
+  });
+
+  it('keeps a reported-off-site person in follow-up until a manager records an outcome', () => {
+    expect(
+      getResolutionReadiness(
+        [{ accountability: 'follow_up_required', latestPhonePresence: 'off_site' }],
+        true,
+      ),
+    ).toEqual({ canResolve: false, blockers: ['people_unaccounted'] });
+  });
+
+  it('allows resolution when all roster outcomes are recorded and the hazard is clear', () => {
+    expect(
+      getResolutionReadiness(
+        [
+          { accountability: 'employee_reported_safe' },
+          { accountability: 'manager_marked_safe' },
+          { accountability: 'manager_exception' },
+        ],
+        true,
+      ),
+    ).toEqual({ canResolve: true, blockers: [] });
   });
 });

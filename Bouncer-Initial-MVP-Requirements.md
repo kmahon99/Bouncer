@@ -15,13 +15,13 @@ The initial roster for an incident is all active employees associated with the w
 - **Device delivery:** whether a phone or work device has acknowledged receipt of the cloud broadcast. This is not the employee acknowledgement.
 - **Employee response:** whether the employee opened the incident from the notification/app and acknowledged it.
 - **Location presence:** whether an enabled location check reports the employee's device within the incident workplace perimeter. This does not prove safety.
-- **Location availability / manual follow-up / Safe:** location permission, location observation, employee acknowledgement, and manager safety outcome are separate facts. A person with no usable location remains for manual follow-up even if acknowledged. **Safe** is a manager-entered outcome, not a system inference.
+- **Location availability / accountability:** location permission, location observation, employee acknowledgement, employee-reported-safe outcome, manager-marked-safe outcome, and manager exception are separate facts. A person with no usable location remains for manual follow-up even if acknowledged. **Employee reported safe** requires an explicit employee action and a fresh assembly-area location check; it is not human-verified safety. **Manager marked safe** is a separately audited human judgement.
 - **Seen:** a critical-device popup was closed by its cancel button. This is a device-notification state, not incident resolution or employee safety.
 
 ### Roles
 
 - **Customer administrator:** manages billing, workplaces, employees, roles, protocols, device configuration, and retention settings.
-- **Incident manager:** declares/resolves incidents, views the manifest, and records manual safety outcomes.
+- **Incident manager:** declares/resolves/aborts incidents, views the manifest, and records manual safety outcomes and hazard-clear confirmation.
 - **Standard employee:** receives alerts and reads instructions.
 - **Work device:** a provisioned Windows 10/11 device assigned to a workplace and presentation mode.
 
@@ -84,9 +84,10 @@ The initial roster for an incident is all active employees associated with the w
 - **EMP-09** Location services and the required app location permission shall be prerequisites for ordinary app features that need location, including future app-based door entry. This prerequisite shall not block the incident-only experience: employees must be able to read active incident instructions and acknowledge without location permission. Notification permission and location permission are separate states.
 - **EMP-10** The service shall track employee acknowledgement independently from location availability. If acknowledgement is received but location is denied, revoked, disabled, stale, or unavailable, the manager view shall show the separate facts and an appropriate label such as **Acknowledged — location unavailable**; the employee remains eligible for manual follow-up.
 - **EMP-11** Fine-grained location collection shall begin only after employee acknowledgement, only during an active incident, and only when permission is granted. The product target is intermittent reporting at approximately five-second intervals when OS, app lifecycle, device, battery, and network permit. The app shall record observation time and accuracy, and the manager view shall show freshness. Silence shall not be interpreted as off-site or safe. The app shall stop collection when the incident ends. Background behavior and achievable cadence must be validated on supported Android versions; do not promise a five-second guarantee.
-- **EMP-12** Location presence shall be shown separately from employee acknowledgement and manager-entered safety status. Presence shall never automatically mark an employee **Safe**.
+- **EMP-12** Location presence shall be shown separately from employee acknowledgement and accountability outcomes. Location presence alone shall never mark an employee **Employee reported safe**; that outcome requires the explicit action and fresh assembly-area check in EMP-15. It shall never create a **Manager marked safe** outcome.
 - **EMP-13** The system shall distinguish notification delivery failure/unreachability from location permission denial or unavailability. A location permission denial shall not prevent incident acknowledgement. If the employee/device cannot be reached after the delivery retry process, the record shall show **Unreachable**, which does not mean safe or off-site.
 - **EMP-14** During an active incident, the manager view may show the latest incident-scoped location reports and configured assembly area with timestamps, accuracy, and stale state. It shall not collect or display continuous location outside an active incident or present a stale observation as a current position.
+- **EMP-15** The incident screen shall provide a **Report safe** action. On activation, the app shall request a fresh location fix and evaluate it against the configured assembly area, including reported accuracy. Only a current fix whose accuracy bounds are wholly inside the area may create an **Employee reported safe** outcome, with timestamp and location evidence. If permission is unavailable, the fix is stale, outside, or uncertain, the outcome remains follow-up required and the employee sees why. This outcome is not human-verified safety.
 
 ### F. Incident manifest and manual safety checks
 
@@ -96,9 +97,12 @@ The initial roster for an incident is all active employees associated with the w
 - **MAN-04** Device delivery shall distinguish **Pending delivery** from **Delivered** for each target device, with a failure/offline state when known.
 - **MAN-05** The roster shall show location classification and last observation time independently from acknowledgement. It may show **Within workplace perimeter**, **Outside workplace perimeter**, **Unknown**, or stale/unavailable with the observation's age/accuracy where available. Unknown or stale location remains for manual follow-up.
 - **MAN-06** During an incident, an authorized manager shall be able to select an employee listed as **Manual check** and mark them **Safe** after an offline/manual check.
-- **MAN-07** A manager-entered **Safe** outcome shall record the acting manager, timestamp, and incident. It shall be visibly distinguished from automatic/system state.
+- **MAN-07** A manager-entered **Manager marked safe** outcome shall record the acting manager, timestamp, and incident. It shall be visibly distinguished from employee-reported-safe and system/location evidence.
 - **MAN-08** The manifest shall retain unacknowledged and unresolved manual-check employees for follow-up until the incident is resolved; resolution shall not silently relabel them as safe.
 - **MAN-09** The interface shall not imply that an alert acknowledgement or a geofence result alone proves that an employee is safe or evacuated.
+- **MAN-10** The manifest shall distinguish **Employee reported safe** (explicit action plus fresh assembly-area check), **Manager marked safe** (recorded human judgement), and **Manager exception** (reasoned outcome). A phone's off-site report shall not automatically remove a person from the roster or clear follow-up.
+- **MAN-11** Incident resolution shall require a recorded outcome for every person in the incident roster and a separate authorized manager confirmation that the hazard is no longer present.
+- **MAN-12** Aborting an incident shall notify employee phones that the incident has ended and they may continue as before, stop incident location collection and notification retries, and immediately dispatch work-device release commands. The UI and audit shall distinguish dispatch from confirmed device receipt/release.
 
 ### G. Windows 10 work-device app
 
@@ -123,6 +127,7 @@ The initial roster for an incident is all active employees associated with the w
 - **AUD-05** After resolution, authorized customer administrators shall be able to review the incident audit in the web portal.
 - **AUD-06** Records shall follow the customer-configured retention period.
 - **AUD-07** Material changes to employee status, protocols, workplace perimeters, roles, and retention settings shall be auditable with actor and time.
+- **AUD-08** Employee-reported-safe events shall preserve the employee action, timestamp, location-check result, and accuracy. Manager-marked-safe, manager exception, hazard-clear confirmation, and abort shall preserve actor, timestamp, and basis/reason as applicable without rewriting earlier evidence.
 
 ### I. Billing and service operation
 
@@ -150,11 +155,14 @@ The initial roster for an incident is all active employees associated with the w
 4. **Acknowledgement without location:** Given an active employee receives an incident prompt but denies, revokes, or cannot provide location, when they open the incident-only experience, then they can read instructions and acknowledge; the manifest records acknowledgement separately from location availability and retains the person for manual follow-up.
 5. **Perimeter presence:** Given an employee has acknowledged and enabled location permission, when a usable incident-scoped observation is available, then the app may report location at the target interval of approximately five seconds while platform conditions allow; the manager sees the latest result, timestamp, accuracy, and freshness without the system marking the employee Safe. Missing subsequent reports make location stale/unavailable, not off-site. Collection stops when the incident ends.
 6. **Manager marks safe:** Given an employee is in Manual check, when an authorized manager selects the employee and marks them Safe after an offline check, then the audit records the manager, time, and incident and the manifest distinguishes this manual outcome.
-7. **Resolve and audit:** Given an active incident, when an authorized manager resolves it, then work-device apps receive the resolved state and the completed audit is available in the customer portal, including people not accounted for at resolution.
-8. **Full overlay:** Given a Windows device is configured for Full overlay, when it receives an incident, then the overlay directs the employee to the phone and cannot be dismissed by an ordinary employee action; it closes when the service sends resolution.
-9. **Critical popup seen:** Given a Windows device is configured for Critical-device popup, when it receives an incident, then a bottom-right popup with a cancel button appears; if canceled, a Seen event is recorded, while the incident remains active.
-10. **Single active incident:** Given a workplace already has an active incident, when a manager attempts to declare another incident at that workplace, then the second declaration is prevented or rejected with a clear explanation.
-11. **Retention:** Given an incident record reaches the configured retention limit, then the service applies the configured retention behavior and does not expose the expired record as retained audit data.
+7. **Report safe at assembly:** Given an acknowledged employee with location permission presses **Report safe**, when a fresh fix's accuracy bounds are inside the assembly area, then the app records **Employee reported safe** with time and location evidence. An outside, stale, unavailable, or uncertain fix leaves the person in follow-up.
+8. **Off-site needs review:** Given a phone reports off-site, then the employee remains in the incident roster until management records a safe outcome or reasoned exception.
+9. **Abort and release:** Given an authorized manager aborts a mistaken incident, then phones are told they may continue as before, location/retries stop, release is immediately dispatched to work devices, and receipt/release remains separately observable.
+10. **Resolve and audit:** Given an active incident, when each roster member has a recorded employee-reported-safe, manager-marked-safe, or manager-exception outcome and an authorized manager confirms the hazard cleared, then the incident resolves, location stops, device releases are dispatched, and the audit is available. Missing an outcome or hazard-clear confirmation blocks resolution.
+11. **Full overlay:** Given a Windows device is configured for Full overlay, when it receives an incident, then the overlay directs the employee to the phone and cannot be dismissed by an ordinary employee action; it closes when the service sends resolution.
+12. **Critical popup seen:** Given a Windows device is configured for Critical-device popup, when it receives an incident, then a bottom-right popup with a cancel button appears; if canceled, a Seen event is recorded, while the incident remains active.
+13. **Single active incident:** Given a workplace already has an active incident, when a manager attempts to declare another incident at that workplace, then the second declaration is prevented or rejected with a clear explanation.
+14. **Retention:** Given an incident record reaches the configured retention limit, then the service applies the configured retention behavior and does not expose the expired record as retained audit data.
 
 ## 5. Explicitly deferred
 
@@ -167,7 +175,7 @@ The initial roster for an incident is all active employees associated with the w
 - Multiple simultaneous incidents at a single workplace.
 - Automated employee removal through HRIS/API integration.
 - Automated confirmation that an employee is safe based only on acknowledgement or location presence.
-- Additional employee actions beyond opening the incident, acknowledgement, and reading its protocol.
+- Other procedure-specific employee actions beyond opening the incident, acknowledgement, reading its protocol, and the agreed **Report safe** action.
 
 ## 6. Decisions recorded
 
@@ -191,9 +199,9 @@ The initial roster for an incident is all active employees associated with the w
 The following product/technical details remain open and must be resolved before dependent stories become Ready:
 
 - What location freshness window should turn a last report stale, and how should low-accuracy or missing GPS be represented? The target is intermittent reporting around every five seconds after acknowledgement during an active incident; foreground/background capability must be measured rather than assumed.
-- What should employees whose phone reports confidently off-site see, and which employee/device groups receive a laptop restriction when presence is unknown?
-- What is the audited abort behavior and employee/device messaging after a false alarm?
-- What evidence and recorded human judgement are sufficient to resolve a person whose device/location cannot be reached?
+- Which employee/device groups receive a laptop restriction when presence is unknown?
+- What retry and support recovery behavior is required if a work device is offline when abort dispatches its release?
+- Which location freshness threshold and maximum fix accuracy should the assembly check accept, after Android platform validation?
 - Which third-party identity/profile and session-management provider should be selected during technical discovery?
 - What exact data is deleted or retained when an incident reaches its policy retention limit, including backups and derived analytics, while meeting applicable regional rules?
 - Can Windows 10 initial release be supported by the work-device implementation and deployment method?

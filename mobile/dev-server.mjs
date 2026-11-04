@@ -2,6 +2,7 @@
 // This intentionally has no authentication and must not be exposed to the internet.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { evaluateAssemblyAreaReport } from './assemblySafety.mjs';
 
 const port = Number(process.env.PORT ?? 3000);
 const devices = new Map();
@@ -58,7 +59,11 @@ const server = createServer(async (request, response) => {
       if ([...incidents.values()].some((incident) => incident.status === 'active')) {
         return json(response, 409, { error: 'Resolve the active incident before declaring another.' });
       }
-      const incident = createIncident({ title: title.trim(), protocol: protocol.trim(), employees });
+      const assemblyArea = body.assemblyArea ?? null;
+      if (assemblyArea !== null && !isValidAssemblyArea(assemblyArea)) {
+        return json(response, 400, { error: 'Assembly area needs valid latitude, longitude, and a positive radius.' });
+      }
+      const incident = createIncident({ title: title.trim(), protocol: protocol.trim(), assemblyArea, employees });
       const messages = [...devices.values()].map(({ token }) => ({
         to: token,
         title: 'Bouncer: active incident',
@@ -66,7 +71,7 @@ const server = createServer(async (request, response) => {
         sound: 'default',
         priority: 'high',
         channelId: 'incidents',
-        data: { action: 'incident', incidentId: incident.id, title: incident.title, protocol: incident.protocol },
+        data: { action: 'incident', incidentId: incident.id, title: incident.title, protocol: incident.protocol, assemblyArea: incident.assemblyArea },
       }));
       const pushResult = await sendPush(messages);
       if (!pushResult.ok) return json(response, 502, { error: 'Expo Push API rejected the request.', details: pushResult.details });
@@ -131,6 +136,39 @@ const server = createServer(async (request, response) => {
       if (employeeResponse) employeeResponse.presence = record.locationStatus === 'available' ? 'location-received' : 'manual-check';
       return json(response, 200, { ok: true, incidentId: id, locationStatus: record.locationStatus });
     }
+    const reportSafeMatch = url.pathname.match(/^\/api\/incidents\/([^/]+)\/report-safe$/);
+    if (request.method === 'POST' && reportSafeMatch) {
+      const body = await readJson(request);
+      const id = decodeURIComponent(reportSafeMatch[1]);
+      const incident = incidents.get(id);
+      if (!incident) return json(response, 404, { error: 'Incident was not found.' });
+      if (incident.status !== 'active') return json(response, 409, { error: 'This incident is no longer active.' });
+      const record = incident.acknowledgements.find((entry) => entry.device === body.device);
+      if (!record?.employeeId) return json(response, 409, { error: 'Acknowledge this incident on a registered device before reporting.' });
+
+      const location = body.location;
+      const result = evaluateAssemblyAreaReport({
+        incidentActive: true,
+        acknowledged: true,
+        locationPermissionGranted: body.locationPermissionGranted === true,
+        locationTimestampMs: typeof location?.capturedAt === 'string' ? Date.parse(location.capturedAt) : Number.NaN,
+        nowMs: Date.now(),
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        accuracyMeters: location?.accuracyMeters,
+        assemblyArea: incident.assemblyArea,
+      });
+      const attemptedAt = new Date().toISOString();
+      record.safetyReport = result.accepted
+        ? {
+            status: 'employee_reported_safe',
+            reportedAt: attemptedAt,
+            accuracyMeters: location.accuracyMeters,
+            distanceToAssemblyMeters: Math.round(result.distanceMeters * 10) / 10,
+          }
+        : { status: 'not_confirmed', reason: result.reason, attemptedAt };
+      return json(response, 200, { ok: true, report: record.safetyReport });
+    }
     const safeMatch = url.pathname.match(/^\/api\/incidents\/([^/]+)\/manifest\/([^/]+)\/safe$/);
     if (request.method === 'POST' && safeMatch) {
       const id = decodeURIComponent(safeMatch[1]);
@@ -139,8 +177,7 @@ const server = createServer(async (request, response) => {
       if (!incident) return json(response, 404, { error: 'Incident was not found.' });
       const entry = incident.employees?.find((candidate) => candidate.employeeId === employeeId);
       if (!entry) return json(response, 404, { error: 'Employee was not found on this incident manifest.' });
-      entry.safety = 'safe';
-      entry.safetyUpdatedAt = new Date().toISOString();
+      entry.managerSafety = { status: 'manager_marked_safe', markedAt: new Date().toISOString() };
       return json(response, 200, { ok: true, employee: entry });
     }
     const manifestMatch = url.pathname.match(/^\/api\/incidents\/([^/]+)\/manifest$/);
@@ -150,7 +187,7 @@ const server = createServer(async (request, response) => {
       const manifest = (incident.employees ?? []).map((entry) => {
         const employee = employees.find((candidate) => candidate.id === entry.employeeId);
         const acknowledgement = incident.acknowledgements.find((candidate) => candidate.employeeId === entry.employeeId);
-        return { ...employee, ...entry, acknowledgedAt: acknowledgement?.acknowledgedAt ?? null };
+        return { ...employee, ...entry, acknowledgedAt: acknowledgement?.acknowledgedAt ?? null, safetyReport: acknowledgement?.safetyReport ?? null };
       });
       return json(response, 200, { incident: { id: incident.id, title: incident.title, declaredAt: incident.declaredAt, status: incident.status, resolvedAt: incident.resolvedAt ?? null }, manifest });
     }
@@ -185,17 +222,24 @@ async function readJson(request) {
   return raw ? JSON.parse(raw) : {};
 }
 
-function createIncident({ title, protocol, employees }) {
+function createIncident({ title, protocol, assemblyArea, employees }) {
   const id = `incident-${Date.now()}`;
   return {
     id,
     title,
     protocol,
+    assemblyArea,
     declaredAt: new Date().toISOString(),
     status: 'active',
-    employees: employees.filter((employee) => employee.active).map((employee) => ({ employeeId: employee.id, response: 'unacknowledged', presence: 'manual-check', safety: 'unconfirmed', safetyUpdatedAt: null })),
+    employees: employees.filter((employee) => employee.active).map((employee) => ({ employeeId: employee.id, response: 'unacknowledged', presence: 'manual-check', managerSafety: null })),
     acknowledgements: [],
   };
+}
+
+function isValidAssemblyArea(area) {
+  return area && Number.isFinite(area.latitude) && area.latitude >= -90 && area.latitude <= 90 &&
+    Number.isFinite(area.longitude) && area.longitude >= -180 && area.longitude <= 180 &&
+    Number.isFinite(area.radiusMeters) && area.radiusMeters > 0;
 }
 
 async function sendPush(messages) {
